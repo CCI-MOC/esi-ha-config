@@ -1,5 +1,5 @@
 ---
-- hosts: esi-undercloud.massopen.cloud
+- hosts: esi_undercloud
   tags: [prep.host]
   tasks:
     - name: get current hostname
@@ -17,7 +17,7 @@
         line: |-
           {{ ansible_default_ipv4.address }}  {{ inventory_hostname }}
 
-- hosts: esi-undercloud.massopen.cloud
+- hosts: esi_undercloud
   tags: [prep.user]
   tasks:
     - name: create stack user
@@ -41,7 +41,7 @@
         owner: root
         group: root
 
-- hosts: esi-undercloud.massopen.cloud
+- hosts: esi_undercloud
   tags: [prep.packages]
   tasks:
 
@@ -70,7 +70,7 @@
           - python3-tripleoclient
           - ceph-ansible
 
-- hosts: esi-undercloud.massopen.cloud
+- hosts: esi_undercloud
   tags: [prep.undercloud]
   vars:
     ansible_user: stack
@@ -91,3 +91,15 @@
       copy:
         src: hiera-overrides.yml
         dest: ./hiera-overrides.yml
+
+
+- hosts: esi_controller
+  tags: [check.controllers]
+  tasks:
+    - name: verify connectivity to heat api
+      uri:
+        url: http://esi-undercloud.massopen.cloud:8004
+
+    - name: verify connectivity to swift api
+      uri:
+        url: http://esi-undercloud.massopen.cloud:8080
