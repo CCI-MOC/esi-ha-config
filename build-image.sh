@@ -1,7 +1,7 @@
 #!/bin/sh
 
 src=/scratch/lars/images/CentOS-8-GenericCloud-8.2.2004-20200611.2.x86_64.qcow2
-dst=centos-8-openstack-base.qcow2
+dst=esi-base.qcow2
 dst_size=20g
 
 if ! [[ -f $src ]]; then

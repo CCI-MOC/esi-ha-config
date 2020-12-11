@@ -6,7 +6,7 @@ mkdir -m 700 /root/.ssh
 curl -o /root/.ssh/authorized_keys https://github.com/larsks.keys
 chmod 600 /root/.ssh/authorized_keys
 
-yum -y remove cloud-init
+#yum -y remove cloud-init
 
 mkdir /etc/systemd/system/serial-getty@.service.d
 cat > /etc/systemd/system/serial-getty@.service.d/override.conf <<'EOF'
@@ -28,7 +28,4 @@ cat > /etc/rootconsole <<EOF
 /dev/ttyS0
 EOF
 
-yum -y install centos-release-openstack-ussuri
-yum config-manager --set-enabled PowerTools
 yum -y upgrade
-yum -y install python3-heat-agent* python3-openstackclient openstack-selinux
