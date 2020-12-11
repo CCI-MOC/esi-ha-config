@@ -1,0 +1,15 @@
+resource_registry:
+  OS::TripleO::DeployedServer::ControlPlanePort: /usr/share/openstack-tripleo-heat-templates/deployed-server/deployed-neutron-port.yaml
+
+parameter_defaults:
+  DeployedServerPortMap:
+{% for host in groups.esi_controller %}
+    {{ host.split('.').0 }}-ctlplane:
+      fixed_ips:
+        - ip_address: {{ hostvars[host].ctlplane_ip|ipv4('address') }}
+      subnets:
+        - cidr: 192.168.24.0/24
+      network:
+        tags:
+          - 192.168.24.0/24
+{% endfor %}

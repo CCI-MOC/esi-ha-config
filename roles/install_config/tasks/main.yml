@@ -1,0 +1,15 @@
+---
+- name: generate deployedserveportmap
+  template:
+    src: portmap.j2.yml
+    dest: ./deployedserverportmap.yml
+
+- name: generate hostnamemap
+  template:
+    src: hostnamemap.j2.yml
+    dest: ./hostnamemap.yml
+
+- name: generate deploy settings
+  template:
+    src: settings.j2.yml
+    dest: ./settings.yml

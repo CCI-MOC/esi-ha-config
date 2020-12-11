@@ -1,0 +1,5 @@
+parameter_defaults:
+  HostnameMap:
+{% for host in groups.esi_controller %}
+    overcloud-controller-{{ loop.index0 }}: {{ host.split('.').0 }}
+{% endfor %}

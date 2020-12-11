@@ -1,0 +1,56 @@
+resource_registry:
+  OS::TripleO::Services::NovaApi: OS::Heat::None
+  OS::TripleO::Services::NovaConductor: OS::Heat::None
+  OS::TripleO::Services::NovaIronic: OS::Heat::None
+  OS::TripleO::Services::NovaMetadata: OS::Heat::None
+  OS::TripleO::Services::NovaScheduler: OS::Heat::None
+  OS::TripleO::Services::NovaVncProxy: OS::Heat::None
+
+  OS::TripleO::DeployedServer::ControlPlanePort: /usr/share/openstack-tripleo-heat-templates/deployed-server/deployed-neutron-port.yaml
+
+  OS::TripleO::Network::Ports::NetVipMap: /usr/share/openstack-tripleo-heat-templates/network/ports/net_vip_map_external.yaml
+  OS::TripleO::Network::Ports::ExternalVipPort: /usr/share/openstack-tripleo-heat-templates/network/ports/noop.yaml
+  OS::TripleO::Network::Ports::InternalApiVipPort: /usr/share/openstack-tripleo-heat-templates/network/ports/noop.yaml
+  OS::TripleO::Network::Ports::StorageVipPort: /usr/share/openstack-tripleo-heat-templates/network/ports/noop.yaml
+  OS::TripleO::Network::Ports::StorageMgmtVipPort: /usr/share/openstack-tripleo-heat-templates/network/ports/noop.yaml
+  OS::TripleO::Network::Ports::TenantVipPort: /usr/share/openstack-tripleo-heat-templates/network/ports/noop.yaml
+  OS::TripleO::Controller::Ports::StoragePort: /usr/share/openstack-tripleo-heat-templates/network/ports/noop.yaml
+  OS::TripleO::Controller::Ports::StorageMgmtPort: /usr/share/openstack-tripleo-heat-templates/network/ports/noop.yaml
+  OS::TripleO::Controller::Ports::TenantPort: /usr/share/openstack-tripleo-heat-templates/network/ports/noop.yaml
+  OS::TripleO::Controller::Ports::InternalApiPort: /usr/share/openstack-tripleo-heat-templates/network/ports/noop.yaml
+
+  OS::TripleO::Network::Ports::RedisVipPort: /usr/share/openstack-tripleo-heat-templates/network/ports/from_service.yaml
+  OS::TripleO::Controller::Ports::ExternalPort: /usr/share/openstack-tripleo-heat-templates/network/ports/external_from_pool.yaml
+
+
+parameter_defaults:
+  NeutronPublicInterface: eth1
+  ControlPlaneDefaultRoute: 192.168.24.1
+  EC2MetadataIp: 192.168.24.1
+
+  IronicEnabledHardwareTypes:
+    - ipmi
+    - redfish
+    - idrac
+  IronicEnabledPowerInterfaces:
+    - ipmitool
+    - redfish
+    - idrac
+  IronicEnabledManagementInterfaces:
+    - ipmitool
+    - redfish
+    - idrac
+  IronicCleaningDiskErase: metadata
+
+  ControllerCount: {{ groups.esi_controller|length }}
+  ComputeCount: 0
+
+  ExternalNetworkVip: 129.10.5.144
+
+  ControllerIPs:
+    external:
+      - 129.10.5.141
+      - 129.10.5.142
+      - 129.10.5.143
+
+  ContainerCli: podman
