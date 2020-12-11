@@ -1,7 +1,29 @@
 ---
-- hosts: esi_undercloud
-  tags: [prep.host]
+- hosts: esi_ha_cluster
+  tags: [prep, prep.host]
+  gather_facts: true
+  become: true
   tasks:
+    - name: get information about root mountpoint
+      set_fact:
+        root_mount_info: "{{ ansible_mounts|selectattr('mount', 'eq', '/')|first }}"
+
+    - name: resize root filesystem if necessary
+      when: root_mount_info.size_total < expected_rootfs_size
+      block:
+        - name: get block device info
+          set_fact:
+            root_block_device: "{{ root_mount_info.device|regex_replace('[0-9]*', '') }}"
+            root_partition: "{{ root_mount_info.device|regex_replace('/dev/[a-z]*', '') }}"
+
+        - name: resize root partition
+          command: >-
+            growpart {{ root_block_device }} {{ root_partition }}
+
+        - name: grow root filesystem
+          command: >-
+            xfs_growfs /
+
     - name: get current hostname
       command: hostname -f
       register: hostname
@@ -17,8 +39,53 @@
         line: |-
           {{ ansible_default_ipv4.address }}  {{ inventory_hostname }}
 
-- hosts: esi_undercloud
-  tags: [prep.user]
+- hosts: esi_ha_cluster
+  tags: [prep, prep.net]
+  become: true
+  tasks:
+    - name: remove unused connections
+      nmcli:
+        conn_name: '{{ item }}'
+        state: absent
+      loop:
+        - 'Wired connection 1'
+        - 'ens3'
+
+    - name: configure dns servers
+      nmcli:
+        conn_name: 'System eth0'
+        state: present
+        type: ethernet
+        dns4:
+          - 8.8.8.8
+          - 8.8.4.4
+
+    - name: check for nameservers in resolv.conf
+      command: >-
+        grep 8.8.8.8 /etc/resolv.conf
+      register: resolv
+      failed_when: false
+      changed_when: resolv.rc != 0
+
+    - name: refresh interface
+      shell: >-
+        nmcli c down 'System eth0' && nmcli c up 'System eth0'
+
+- hosts: esi_controller
+  tags: [prep, prep.net]
+  become: true
+  tasks:
+    - name: configure ctlplane connection
+      nmcli:
+        conn_name: 'System eth1'
+        state: present
+        type: ethernet
+        ifname: '{{ ctlplane_interface }}'
+        ip4: "{{ ctlplane_ip }}"
+
+- hosts: esi_ha_cluster
+  tags: [prep, prep.user]
+  become: true
   tasks:
     - name: create stack user
       user:
@@ -42,14 +109,33 @@
         group: root
 
 - hosts: esi_undercloud
-  tags: [prep.packages]
+  tags: [prep, prep.user]
+  vars:
+    ansible_user: stack
+  tasks:
+    - name: fetch undercloud ssh public key
+      fetch:
+        src: ./.ssh/id_rsa.pub
+        dest: undercloud_rsa.pub
+        flat: true
+
+- hosts: esi_controller
+  tags: [prep, prep.user]
+  tasks:
+    - name: install undercloud public key
+      authorized_key:
+        user: stack
+        key: "{{ lookup('file', 'undercloud_rsa.pub') }}"
+
+- hosts: esi_ha_cluster
+  tags: [prep, prep.packages]
   tasks:
 
     ## LKS: we're using 'dnf' instead of 'package' because we need
     ## disable_gpg_check. Consider pre-fetching the keys instead.
     - name: install tripleo-repos
       dnf:
-        name: https://trunk.rdoproject.org/centos8/component/tripleo/current/python3-tripleo-repos-{{ tripleo_repos_version }}.el8.noarch.rpm
+        name: "{{ tripleo_repos_url }}"
         state: installed
         disable_gpg_check: true
 
@@ -62,7 +148,11 @@
         name: '*'
         state: latest
 
-    - name: install tripleo
+- hosts: esi_undercloud
+  tags: [prep, prep.packages]
+  become: true
+  tasks:
+    - name: install tripleo packages
       dnf:
         name: "{{ packages }}"
       vars:
@@ -70,8 +160,25 @@
           - python3-tripleoclient
           - ceph-ansible
 
+- hosts: esi_controller
+  tags: [prep, prep.pacakges]
+  become: true
+  tasks:
+    - name: install tripleo packages
+      dnf:
+        name: "{{ packages }}"
+      vars:
+        packages:
+          - python3-heat-agent
+          - python3-heat-agent-ansible
+          - python3-heat-agent-apply-config
+          - python3-heat-agent-docker-cmd
+          - python3-heat-agent-hiera
+          - python3-heat-agent-json-file
+          - python3-heat-agent-puppet
+
 - hosts: esi_undercloud
-  tags: [prep.undercloud]
+  tags: [prep, prep.undercloud]
   vars:
     ansible_user: stack
 
@@ -92,14 +199,71 @@
         src: hiera-overrides.yml
         dest: ./hiera-overrides.yml
 
+######################################################################
+
+- hosts: esi_undercloud
+  tags: [check.undercloud_complete]
+  vars:
+    ansible_user: stack
+  tasks:
+    - name: check if stackrc exists
+      stat:
+        path: ./stackrc
+      register: stackrc
+
+    - name: fail if undercloud install is not complete
+      assert:
+        that: stackrc.stat.exists
+
+######################################################################
+
+- hosts: esi_undercloud
+  tags: [preinst, preinst.ssl]
+  tasks:
+    - name: get undercloud ca certificate
+      fetch:
+        src: /etc/pki/ca-trust/source/anchors/cm-local-ca.pem
+        dest: undercloud-ca.pem
+        flat: true
 
 - hosts: esi_controller
-  tags: [check.controllers]
+  tags: [preinst, preinst.ssl]
+  tasks:
+    - name: install undercloud ca certificate
+      copy:
+        src: undercloud-ca.pem
+        dest: /etc/pki/ca-trust/source/anchors/
+      register: cert
+
+    - name: update ca trust
+      when: cert is changed or force_update_ca_trust|default(false)|bool
+      command: >-
+        update-ca-trust extract
+
+- hosts: esi_controller
+  tags: [preinst, preinst.api]
   tasks:
     - name: verify connectivity to heat api
       uri:
-        url: http://esi-undercloud.massopen.cloud:8004
+        url: https://esi-undercloud.massopen.cloud:13004
+        status_code:
+          - 300
 
     - name: verify connectivity to swift api
       uri:
-        url: http://esi-undercloud.massopen.cloud:8080
+        url: https://esi-undercloud.massopen.cloud:13808
+        status_code:
+          - 404
+
+- hosts: esi_undercloud
+  tags: [preinst, preinst.templates]
+  vars:
+    ansible_user: stack
+  roles:
+    - install_config
+  tasks:
+    - name: install overcloud-deploy.sh script
+      copy:
+        src: overcloud-deploy.sh
+        dest: ./overcloud-deploy.sh
+        mode: 0755
