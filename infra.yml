@@ -5,9 +5,10 @@
     - block:
         - name: authenticate to ovirt
           delegate_to: localhost
+          run_once: true
           ovirt_auth:
 
-        - name: create base vm
+        - name: create {{ inventory_hostname }}
           delegate_to: localhost
           ovirt_vm:
             auth: "{{ ovirt_auth }}"
