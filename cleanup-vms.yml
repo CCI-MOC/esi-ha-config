@@ -1,0 +1,24 @@
+---
+- hosts: localhost
+  gather_facts: false
+  tasks:
+    - block:
+        - ovirt_auth:
+            state: present
+
+        - ovirt_vm:
+            state: absent
+            name: "{{ item }}"
+          loop: "{{ groups.esi_ha_cluster }}"
+
+        - ovirt_vm:
+            state: absent
+            name: "{{ item.split('.').0 }}"
+          loop: "{{ groups.esi_ha_cluster }}"
+
+      always:
+        - name: revoke sso token
+          when: ovirt_auth is defined
+          ovirt_auth:
+            state: absent
+            ovirt_auth: "{{ ovirt_auth }}"
