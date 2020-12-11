@@ -1,24 +1,24 @@
 ---
-- hosts: localhost
+- hosts: esi_ha_cluster
   gather_facts: false
   tasks:
     - block:
-        - ovirt_auth:
+        - name: authenticate to ovirt
+          delegate_to: localhost
+          run_once: true
+          ovirt_auth:
             state: present
 
-        - ovirt_vm:
+        - name: delete virtual machines
+          delegate_to: localhost
+          ovirt_vm:
             state: absent
-            name: "{{ item }}"
-          loop: "{{ groups.esi_ha_cluster }}"
-
-        - ovirt_vm:
-            state: absent
-            name: "{{ item.split('.').0 }}"
-          loop: "{{ groups.esi_ha_cluster }}"
+            name: "{{ inventory_hostname }}"
 
       always:
         - name: revoke sso token
           when: ovirt_auth is defined
+          delegate_to: localhost
           ovirt_auth:
             state: absent
             ovirt_auth: "{{ ovirt_auth }}"
